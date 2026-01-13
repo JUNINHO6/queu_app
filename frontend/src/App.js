@@ -40,6 +40,22 @@ function App() {
             } 
           />
           <Route 
+            path="/queue/:queueId/reservations" 
+            element={
+              <ProtectedRoute>
+                <ReservationManagement />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/queue/:queueId/analytics" 
+            element={
+              <ProtectedRoute>
+                <Analytics />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/notifications" 
             element={
               <ProtectedRoute>
