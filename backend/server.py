@@ -454,8 +454,8 @@ async def get_queue_stats(queue_id: str, establishment_id: str = Depends(get_cur
         wait_times = []
         for ticket in served_tickets:
             created = datetime.fromisoformat(ticket["created_at"]) if isinstance(ticket["created_at"], str) else ticket["created_at"]
-            served = datetime.fromisoformat(ticket["served_at"]) if isinstance(ticket["served_at"], str) else ticket["served_at"]
-            wait_times.append((served - created).total_seconds() / 60)
+            served_time = datetime.fromisoformat(ticket["served_at"]) if isinstance(ticket["served_at"], str) else ticket["served_at"]
+            wait_times.append((served_time - created).total_seconds() / 60)
         avg_wait = sum(wait_times) / len(wait_times) if wait_times else None
     
     return QueueStats(
