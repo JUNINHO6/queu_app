@@ -181,14 +181,24 @@ const Dashboard = () => {
               <p className="text-xs text-slate-600">{establishment?.name}</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            onClick={handleLogout}
-            data-testid="logout-btn"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Déconnexion
-          </Button>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/notifications')}
+              data-testid="notifications-settings-btn"
+            >
+              <Bell className="w-4 h-4 mr-2" />
+              Notifications
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleLogout}
+              data-testid="logout-btn"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
+            </Button>
+          </div>
         </div>
       </header>
 
