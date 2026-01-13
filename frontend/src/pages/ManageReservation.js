@@ -152,7 +152,7 @@ const ManageReservation = () => {
   }
 
   const statusConfig = getStatusConfig(reservation.status);
-  const canModify = reservation.status === 'pending';
+  const canModify = reservation.status !== 'cancelled'; // Peut modifier même si activé
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 py-12">
