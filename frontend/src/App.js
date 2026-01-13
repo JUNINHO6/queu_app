@@ -66,6 +66,7 @@ function App() {
           />
           <Route path="/q/:queueId" element={<ClientQueue />} />
           <Route path="/q/:queueId/reserve" element={<ReservationPage />} />
+          <Route path="/reservation/:reservationId" element={<ManageReservation />} />
           <Route path="/ticket/:ticketId" element={<TicketView />} />
         </Routes>
       </BrowserRouter>
