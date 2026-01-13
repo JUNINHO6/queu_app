@@ -9,6 +9,7 @@ import ClientQueue from './pages/ClientQueue';
 import TicketView from './pages/TicketView';
 import QueueDetails from './pages/QueueDetails';
 import ReservationPage from './pages/ReservationPage';
+import NotificationSettings from './pages/NotificationSettings';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
