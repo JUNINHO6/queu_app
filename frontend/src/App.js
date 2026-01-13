@@ -37,6 +37,14 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/notifications" 
+            element={
+              <ProtectedRoute>
+                <NotificationSettings />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="/q/:queueId" element={<ClientQueue />} />
           <Route path="/q/:queueId/reserve" element={<ReservationPage />} />
           <Route path="/ticket/:ticketId" element={<TicketView />} />
