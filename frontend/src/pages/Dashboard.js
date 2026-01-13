@@ -337,6 +337,28 @@ const Dashboard = () => {
                   </Button>
                 </div>
 
+                {/* New Section: Quick Links */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => navigate(`/queue/${selectedQueue.id}/reservations`)}
+                    variant="outline"
+                    className="py-6 rounded-lg border-2"
+                    data-testid="reservations-btn"
+                  >
+                    <Calendar className="w-5 h-5 mr-2" />
+                    Gérer les réservations
+                  </Button>
+                  <Button
+                    onClick={() => navigate(`/queue/${selectedQueue.id}/analytics`)}
+                    variant="outline"
+                    className="py-6 rounded-lg border-2"
+                    data-testid="analytics-btn"
+                  >
+                    <BarChart3 className="w-5 h-5 mr-2" />
+                    Voir les analytics
+                  </Button>
+                </div>
+
                 {/* Stats */}
                 {queueStats && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
