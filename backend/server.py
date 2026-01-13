@@ -802,16 +802,18 @@ async def get_reservation(reservation_id: str):
 
 @api_router.put("/reservations/{reservation_id}")
 async def update_reservation(reservation_id: str, data: ReservationCreate):
-    """Update a reservation (only if not yet activated)"""
+    """Update a reservation (can update even if activated, will update associated ticket)"""
     reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
     
-    if reservation["status"] != "pending":
-        raise HTTPException(status_code=400, detail="Cannot modify an activated or cancelled reservation")
+    if reservation["status"] == "cancelled":
+        raise HTTPException(status_code=400, detail="Cannot modify a cancelled reservation")
     
-    # Get queue for recalculation
+    # Get queue and establishment info
     queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    establishment = await db.establishments.find_one({"id": queue["establishment_id"]}, {"_id": 0})
+    
     current_waiting = await db.tickets.count_documents({
         "queue_id": reservation["queue_id"],
         "status": "waiting"
@@ -832,7 +834,15 @@ async def update_reservation(reservation_id: str, data: ReservationCreate):
         {"$set": update_data}
     )
     
-    # Send confirmation email
+    # If reservation was activated, update the associated ticket
+    if reservation["status"] == "activated" and reservation.get("ticket_id"):
+        await db.tickets.update_one(
+            {"id": reservation["ticket_id"]},
+            {"$set": {"email": data.email, "phone": data.phone}}
+        )
+        logger.info(f"✓ Updated associated ticket {reservation['ticket_id']}")
+    
+    # Notify client
     logger.info(f"📧 Sending reservation update confirmation to {data.email}")
     if data.email and RESEND_API_KEY:
         try:
@@ -880,9 +890,62 @@ async def update_reservation(reservation_id: str, data: ReservationCreate):
             }
             
             await asyncio.to_thread(resend.Emails.send, params)
-            logger.info(f"✓ Update confirmation email sent")
+            logger.info(f"✓ Update confirmation email sent to client")
         except Exception as e:
             logger.error(f"❌ Failed to send update email: {str(e)}")
+    
+    # Notify admin/establishment
+    logger.info(f"📧 Notifying admin about reservation update")
+    if establishment.get("email") and RESEND_API_KEY:
+        try:
+            admin_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #F97316 0%, #FB923C 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .info {{ background-color: #FFF7ED; border-left: 4px solid #F97316; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>⚠️ Réservation Modifiée par Client</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Un client a modifié sa réservation pour <strong>{queue["name"]}</strong>.</p>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #9A3412;"><strong>Client: {data.email}</strong></p>
+                            <p style="margin: 5px 0 0 0; color: #9A3412;">Nouveau créneau: {data.reserved_time.strftime('%d/%m/%Y à %H:%M')}</p>
+                            {f'<p style="margin: 5px 0 0 0; color: #9A3412;">Téléphone: {data.phone}</p>' if data.phone else ''}
+                        </div>
+                        
+                        <p style="font-size: 14px; color: #64748b; margin-top: 30px;">
+                            Statut: {reservation["status"].upper()}
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            admin_params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [establishment["email"]],
+                "subject": f"⚠️ Réservation modifiée - {queue['name']}",
+                "html": admin_html
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, admin_params)
+            logger.info(f"✓ Admin notification sent to {establishment['email']}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send admin notification: {str(e)}")
     
     return {"message": "Reservation updated successfully", "estimated_arrival": estimated_arrival}
 
