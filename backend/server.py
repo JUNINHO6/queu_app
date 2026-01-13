@@ -637,17 +637,76 @@ async def create_reservation(queue_id: str, data: ReservationCreate):
     
     await db.reservations.insert_one(doc)
     
-    # Send confirmation email
-    if data.email:
+    # Send confirmation email with management link
+    logger.info(f"📧 Sending reservation confirmation to {data.email}")
+    if data.email and RESEND_API_KEY:
         try:
-            await NotificationService.send_email_notification(
-                data.email,
-                queue["name"],
-                0,  # No ticket number yet
-                0
-            )
-        except:
-            pass
+            reservation_url = f"{os.environ.get('FRONTEND_URL')}/reservation/{reservation.id}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 32px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .info {{ background-color: #D1FAE5; border-left: 4px solid #14B8A6; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                    .button {{ display: inline-block; background-color: #14B8A6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }}
+                    .link {{ word-break: break-all; background-color: #F1F5F9; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✅ Réservation Confirmée !</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Votre réservation pour <strong>{queue["name"]}</strong> a été créée avec succès.</p>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #065F46;"><strong>📅 Créneau: {data.reserved_time.strftime('%d/%m/%Y à %H:%M')}</strong></p>
+                            <p style="margin: 5px 0 0 0; color: #065F46;">Arrivée estimée: {estimated_arrival.strftime('%d/%m/%Y à %H:%M')}</p>
+                        </div>
+                        
+                        <p style="font-size: 16px; color: #475569; margin-top: 30px;">
+                            <strong>Gérez votre réservation :</strong>
+                        </p>
+                        
+                        <div style="text-align: center;">
+                            <a href="{reservation_url}" class="button">
+                                Voir / Modifier ma réservation
+                            </a>
+                        </div>
+                        
+                        <p style="font-size: 14px; color: #64748b; margin-top: 20px;">
+                            Avec ce lien, vous pouvez modifier ou annuler votre réservation à tout moment.
+                        </p>
+                        
+                        <p style="font-size: 12px; color: #94A3B8; margin-top: 30px;">
+                            Lien permanent : <br/>
+                            <span class="link">{reservation_url}</span>
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [data.email],
+                "subject": f"✅ Réservation confirmée - {queue['name']}",
+                "html": html_content
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"✓ Confirmation email sent with management link")
+        except Exception as e:
+            logger.error(f"❌ Failed to send confirmation: {str(e)}")
     
     return reservation
 
