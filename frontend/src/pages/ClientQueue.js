@@ -101,6 +101,17 @@ const ClientQueue = () => {
             <div className="hero-number text-indigo-600">{queue.last_called_number || '—'}</div>
           </div>
 
+          {/* Waiting Count - BIG AND VISIBLE */}
+          <div className="bg-gradient-to-r from-orange-50 to-orange-100 border-2 border-orange-300 rounded-2xl p-6 mb-6">
+            <div className="text-center">
+              <p className="text-orange-700 font-semibold text-lg mb-2">Personnes en attente</p>
+              <div className="text-7xl font-display font-extrabold text-orange-600" data-testid="waiting-count-display">
+                {queue.current_number - queue.last_called_number}
+              </div>
+              <p className="text-orange-600 text-sm mt-2">dans la file actuellement</p>
+            </div>
+          </div>
+
           {/* Stats */}
           <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-200">
             <div data-testid="total-waiting">
