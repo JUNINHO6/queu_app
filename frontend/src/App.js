@@ -7,6 +7,8 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ClientQueue from './pages/ClientQueue';
 import TicketView from './pages/TicketView';
+import QueueDetails from './pages/QueueDetails';
+import ReservationPage from './pages/ReservationPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -26,7 +28,16 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+            path="/queue/:queueId/details" 
+            element={
+              <ProtectedRoute>
+                <QueueDetails />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="/q/:queueId" element={<ClientQueue />} />
+          <Route path="/q/:queueId/reserve" element={<ReservationPage />} />
           <Route path="/ticket/:ticketId" element={<TicketView />} />
         </Routes>
       </BrowserRouter>
