@@ -103,6 +103,7 @@ class Queue(BaseModel):
 
 class TicketCreate(BaseModel):
     email: Optional[EmailStr] = None
+    phone: Optional[str] = None
 
 class Ticket(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -110,10 +111,29 @@ class Ticket(BaseModel):
     queue_id: str
     ticket_number: int
     email: Optional[str] = None
+    phone: Optional[str] = None
     status: str = "waiting"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     called_at: Optional[datetime] = None
     served_at: Optional[datetime] = None
+    notified: bool = False
+
+class Reservation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    queue_id: str
+    email: EmailStr
+    phone: Optional[str] = None
+    reserved_time: datetime
+    estimated_arrival: datetime
+    status: str = "pending"
+    ticket_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ReservationCreate(BaseModel):
+    email: EmailStr
+    phone: Optional[str] = None
+    reserved_time: datetime
 
 class QueueStats(BaseModel):
     total_tickets: int
