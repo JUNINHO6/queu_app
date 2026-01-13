@@ -331,6 +331,62 @@ async def call_next(queue_id: str, establishment_id: str = Depends(get_current_u
         "ticket_id": next_ticket["id"]
     })
     
+    # Send "your turn" notification to the called ticket
+    if next_ticket.get("email") or next_ticket.get("phone"):
+        try:
+            await NotificationService.send_your_turn_notification(
+                email=next_ticket.get("email"),
+                phone=next_ticket.get("phone"),
+                queue_name=queue["name"],
+                ticket_number=next_ticket["ticket_number"]
+            )
+        except Exception as e:
+            logger.error(f"Failed to send notification: {str(e)}")
+    
+    # Check and notify upcoming tickets (threshold = 3)
+    threshold = queue.get("notification_threshold", 3)
+    upcoming_tickets = await db.tickets.find(
+        {
+            "queue_id": queue_id,
+            "status": "waiting",
+            "ticket_number": {
+                "$gt": next_ticket["ticket_number"],
+                "$lte": next_ticket["ticket_number"] + threshold
+            },
+            "notified": {"$ne": True}
+        },
+        {"_id": 0}
+    ).to_list(threshold)
+    
+    for upcoming_ticket in upcoming_tickets:
+        position = upcoming_ticket["ticket_number"] - next_ticket["ticket_number"]
+        if upcoming_ticket.get("email"):
+            try:
+                await NotificationService.send_email_notification(
+                    upcoming_ticket["email"],
+                    queue["name"],
+                    upcoming_ticket["ticket_number"],
+                    position
+                )
+                # Mark as notified
+                await db.tickets.update_one(
+                    {"id": upcoming_ticket["id"]},
+                    {"$set": {"notified": True}}
+                )
+            except Exception as e:
+                logger.error(f"Failed to send email notification: {str(e)}")
+        
+        if upcoming_ticket.get("phone"):
+            try:
+                await NotificationService.send_sms_notification(
+                    upcoming_ticket["phone"],
+                    queue["name"],
+                    upcoming_ticket["ticket_number"],
+                    position
+                )
+            except Exception as e:
+                logger.error(f"Failed to send SMS notification: {str(e)}")
+    
     return {"ticket_number": next_ticket["ticket_number"], "ticket_id": next_ticket["id"]}
 
 @api_router.post("/queues/{queue_id}/reset")
