@@ -480,8 +480,240 @@ async def get_ticket_position(ticket_id: str):
         "position": position,
         "status": ticket["status"],
         "ticket_number": ticket["ticket_number"],
-        "current_serving": queue["last_called_number"]
+        "current_serving": queue["last_called_number"],
+        "estimated_wait_time": await calculate_estimated_wait_time(queue["id"], position)
     }
+
+# Helper function for estimated wait time
+async def calculate_estimated_wait_time(queue_id: str, position: int) -> Optional[int]:
+    """Calculate estimated wait time in minutes based on recent history"""
+    if position <= 0:
+        return 0
+    
+    # Get recently served tickets (last 10)
+    recent_tickets = await db.tickets.find(
+        {
+            "queue_id": queue_id,
+            "status": "served",
+            "served_at": {"$exists": True},
+            "called_at": {"$exists": True}
+        },
+        {"_id": 0, "called_at": 1, "served_at": 1}
+    ).sort("served_at", -1).limit(10).to_list(10)
+    
+    if not recent_tickets or len(recent_tickets) < 3:
+        return None
+    
+    # Calculate average service time
+    service_times = []
+    for ticket in recent_tickets:
+        called = datetime.fromisoformat(ticket["called_at"]) if isinstance(ticket["called_at"], str) else ticket["called_at"]
+        served = datetime.fromisoformat(ticket["served_at"]) if isinstance(ticket["served_at"], str) else ticket["served_at"]
+        service_times.append((served - called).total_seconds() / 60)
+    
+    avg_service_time = sum(service_times) / len(service_times)
+    estimated_minutes = int(avg_service_time * position)
+    
+    return estimated_minutes
+
+# Reservation endpoints
+@api_router.post("/queues/{queue_id}/reservations")
+async def create_reservation(queue_id: str, data: ReservationCreate):
+    """Create a time-slot reservation"""
+    queue = await db.queues.find_one({"id": queue_id}, {"_id": 0})
+    if not queue:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    # Calculate estimated arrival based on current queue state
+    current_waiting = await db.tickets.count_documents({
+        "queue_id": queue_id,
+        "status": "waiting"
+    })
+    
+    # Estimate 5 minutes per person
+    estimated_arrival = data.reserved_time + timedelta(minutes=current_waiting * 5)
+    
+    reservation = Reservation(
+        queue_id=queue_id,
+        email=data.email,
+        phone=data.phone,
+        reserved_time=data.reserved_time,
+        estimated_arrival=estimated_arrival
+    )
+    
+    doc = reservation.model_dump()
+    doc["reserved_time"] = doc["reserved_time"].isoformat()
+    doc["estimated_arrival"] = doc["estimated_arrival"].isoformat()
+    doc["created_at"] = doc["created_at"].isoformat()
+    
+    await db.reservations.insert_one(doc)
+    
+    # Send confirmation email
+    if data.email:
+        try:
+            await NotificationService.send_email_notification(
+                data.email,
+                queue["name"],
+                0,  # No ticket number yet
+                0
+            )
+        except:
+            pass
+    
+    return reservation
+
+@api_router.get("/queues/{queue_id}/reservations")
+async def get_reservations(queue_id: str, establishment_id: str = Depends(get_current_user)):
+    """Get all reservations for a queue"""
+    queue = await db.queues.find_one({"id": queue_id}, {"_id": 0})
+    if not queue or queue["establishment_id"] != establishment_id:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    reservations = await db.reservations.find(
+        {"queue_id": queue_id},
+        {"_id": 0}
+    ).sort("reserved_time", 1).to_list(100)
+    
+    for res in reservations:
+        if isinstance(res.get("reserved_time"), str):
+            res["reserved_time"] = datetime.fromisoformat(res["reserved_time"])
+        if isinstance(res.get("estimated_arrival"), str):
+            res["estimated_arrival"] = datetime.fromisoformat(res["estimated_arrival"])
+        if isinstance(res.get("created_at"), str):
+            res["created_at"] = datetime.fromisoformat(res["created_at"])
+    
+    return reservations
+
+@api_router.post("/reservations/{reservation_id}/activate")
+async def activate_reservation(reservation_id: str):
+    """Convert a reservation into an active ticket"""
+    reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    if reservation["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Reservation already activated or cancelled")
+    
+    # Create ticket
+    ticket_data = TicketCreate(
+        email=reservation["email"],
+        phone=reservation.get("phone")
+    )
+    ticket = await create_ticket(reservation["queue_id"], ticket_data)
+    
+    # Update reservation
+    await db.reservations.update_one(
+        {"id": reservation_id},
+        {"$set": {"status": "activated", "ticket_id": ticket.id}}
+    )
+    
+    return {"ticket": ticket, "message": "Reservation activated"}
+
+# Export endpoints
+@api_router.get("/queues/{queue_id}/export/csv")
+async def export_queue_stats_csv(queue_id: str, establishment_id: str = Depends(get_current_user)):
+    """Export queue statistics as CSV"""
+    queue = await db.queues.find_one({"id": queue_id}, {"_id": 0})
+    if not queue or queue["establishment_id"] != establishment_id:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    # Get stats
+    total_tickets = await db.tickets.count_documents({"queue_id": queue_id})
+    waiting = await db.tickets.count_documents({"queue_id": queue_id, "status": "waiting"})
+    served = await db.tickets.count_documents({"queue_id": queue_id, "status": "served"})
+    
+    served_tickets = await db.tickets.find(
+        {"queue_id": queue_id, "status": "served", "served_at": {"$exists": True}},
+        {"_id": 0, "created_at": 1, "served_at": 1}
+    ).to_list(1000)
+    
+    avg_wait = None
+    if served_tickets:
+        wait_times = []
+        for ticket in served_tickets:
+            created = datetime.fromisoformat(ticket["created_at"]) if isinstance(ticket["created_at"], str) else ticket["created_at"]
+            served_time = datetime.fromisoformat(ticket["served_at"]) if isinstance(ticket["served_at"], str) else ticket["served_at"]
+            wait_times.append((served_time - created).total_seconds() / 60)
+        avg_wait = sum(wait_times) / len(wait_times)
+    
+    stats = {
+        "total_tickets": total_tickets,
+        "waiting": waiting,
+        "served": served,
+        "average_wait_time": avg_wait
+    }
+    
+    csv_content = ExportService.generate_csv(stats, queue["name"])
+    
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=queue_stats_{queue_id}.csv"}
+    )
+
+@api_router.get("/queues/{queue_id}/export/pdf")
+async def export_queue_stats_pdf(queue_id: str, establishment_id: str = Depends(get_current_user)):
+    """Export queue statistics as PDF"""
+    queue = await db.queues.find_one({"id": queue_id}, {"_id": 0})
+    if not queue or queue["establishment_id"] != establishment_id:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    # Get stats
+    total_tickets = await db.tickets.count_documents({"queue_id": queue_id})
+    waiting = await db.tickets.count_documents({"queue_id": queue_id, "status": "waiting"})
+    served = await db.tickets.count_documents({"queue_id": queue_id, "status": "served"})
+    
+    served_tickets = await db.tickets.find(
+        {"queue_id": queue_id, "status": "served", "served_at": {"$exists": True}},
+        {"_id": 0, "created_at": 1, "served_at": 1}
+    ).to_list(1000)
+    
+    avg_wait = None
+    if served_tickets:
+        wait_times = []
+        for ticket in served_tickets:
+            created = datetime.fromisoformat(ticket["created_at"]) if isinstance(ticket["created_at"], str) else ticket["created_at"]
+            served_time = datetime.fromisoformat(ticket["served_at"]) if isinstance(ticket["served_at"], str) else ticket["served_at"]
+            wait_times.append((served_time - created).total_seconds() / 60)
+        avg_wait = sum(wait_times) / len(wait_times)
+    
+    stats = {
+        "total_tickets": total_tickets,
+        "waiting": waiting,
+        "served": served,
+        "average_wait_time": avg_wait
+    }
+    
+    pdf_content = ExportService.generate_pdf(stats, queue["name"])
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_content),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=queue_stats_{queue_id}.pdf"}
+    )
+
+# History endpoint
+@api_router.get("/queues/{queue_id}/history")
+async def get_queue_history(queue_id: str, establishment_id: str = Depends(get_current_user), limit: int = 50):
+    """Get ticket history for a queue"""
+    queue = await db.queues.find_one({"id": queue_id}, {"_id": 0})
+    if not queue or queue["establishment_id"] != establishment_id:
+        raise HTTPException(status_code=404, detail="Queue not found")
+    
+    tickets = await db.tickets.find(
+        {"queue_id": queue_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    for ticket in tickets:
+        if isinstance(ticket.get("created_at"), str):
+            ticket["created_at"] = datetime.fromisoformat(ticket["created_at"])
+        if ticket.get("called_at") and isinstance(ticket["called_at"], str):
+            ticket["called_at"] = datetime.fromisoformat(ticket["called_at"])
+        if ticket.get("served_at") and isinstance(ticket["served_at"], str):
+            ticket["served_at"] = datetime.fromisoformat(ticket["served_at"])
+    
+    return tickets
 
 # WebSocket endpoint
 @app.websocket("/ws/{queue_id}")
