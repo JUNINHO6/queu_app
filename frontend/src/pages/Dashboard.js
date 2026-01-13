@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Plus, LogOut, Play, Pause, RotateCcw, QrCode, Users, Clock } from 'lucide-react';
-import QRCodeReact from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
