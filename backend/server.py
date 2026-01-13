@@ -666,6 +666,9 @@ async def activate_reservation(reservation_id: str):
     if reservation["status"] != "pending":
         raise HTTPException(status_code=400, detail="Reservation already activated or cancelled")
     
+    # Get queue info for notification
+    queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    
     # Create ticket
     ticket_data = TicketCreate(
         email=reservation["email"],
@@ -679,7 +682,89 @@ async def activate_reservation(reservation_id: str):
         {"$set": {"status": "activated", "ticket_id": ticket.id}}
     )
     
-    return {"ticket": ticket, "message": "Reservation activated"}
+    # Send activation notification
+    logger.info(f"📧 Sending reservation activation notification to {reservation['email']}")
+    if reservation.get("email"):
+        try:
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 32px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .ticket-number {{ font-size: 72px; font-weight: 800; color: #14B8A6; text-align: center; margin: 20px 0; }}
+                    .info {{ background-color: #D1FAE5; border-left: 4px solid #14B8A6; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                    .button {{ display: inline-block; background-color: #14B8A6; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>✅ Réservation Activée !</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Votre réservation pour <strong>{queue["name"]}</strong> a été activée !</p>
+                        
+                        <div class="ticket-number">{ticket.ticket_number}</div>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #065F46;"><strong>🎟️ Votre numéro de ticket a été généré</strong></p>
+                            <p style="margin: 5px 0 0 0; color: #065F46;">Vous pouvez maintenant suivre votre position en temps réel</p>
+                        </div>
+                        
+                        <p style="font-size: 16px; color: #475569; margin-top: 30px;">
+                            Cliquez sur le bouton ci-dessous pour voir votre ticket :
+                        </p>
+                        
+                        <div style="text-align: center;">
+                            <a href="{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/ticket/{ticket.id}" class="button">
+                                Voir mon ticket
+                            </a>
+                        </div>
+                        
+                        <p style="font-size: 14px; color: #64748b; margin-top: 30px;">
+                            Vous recevrez des notifications quand votre tour approchera.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [reservation["email"]],
+                "subject": f"✅ Réservation activée - Ticket #{ticket.ticket_number}",
+                "html": html_content
+            }
+            
+            if RESEND_API_KEY:
+                await asyncio.to_thread(resend.Emails.send, params)
+                logger.info(f"✓ Activation email sent to {reservation['email']}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send activation email: {str(e)}")
+    
+    # Send SMS if phone provided
+    if reservation.get("phone") and twilio_client:
+        try:
+            message_body = f"✅ QUEUE: Votre réservation a été activée!\n\nFile: {queue['name']}\nVotre numéro: {ticket.ticket_number}\n\nSuivez votre position: {os.environ.get('FRONTEND_URL')}/ticket/{ticket.id}"
+            
+            await asyncio.to_thread(
+                twilio_client.messages.create,
+                body=message_body,
+                from_=TWILIO_PHONE_NUMBER,
+                to=reservation["phone"]
+            )
+            logger.info(f"✓ Activation SMS sent to {reservation['phone']}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send activation SMS: {str(e)}")
+    
+    return {"ticket": ticket, "message": "Reservation activated and notification sent"}
 
 # Export endpoints
 @api_router.get("/queues/{queue_id}/export/csv")
