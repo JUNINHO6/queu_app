@@ -783,6 +783,185 @@ async def activate_reservation(reservation_id: str):
     
     return {"ticket": ticket, "message": "Reservation activated and notification sent"}
 
+@api_router.get("/reservations/{reservation_id}")
+async def get_reservation(reservation_id: str):
+    """Get a specific reservation by ID (public endpoint)"""
+    reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    # Convert datetime strings
+    if isinstance(reservation.get("reserved_time"), str):
+        reservation["reserved_time"] = datetime.fromisoformat(reservation["reserved_time"])
+    if isinstance(reservation.get("estimated_arrival"), str):
+        reservation["estimated_arrival"] = datetime.fromisoformat(reservation["estimated_arrival"])
+    if isinstance(reservation.get("created_at"), str):
+        reservation["created_at"] = datetime.fromisoformat(reservation["created_at"])
+    
+    return reservation
+
+@api_router.put("/reservations/{reservation_id}")
+async def update_reservation(reservation_id: str, data: ReservationCreate):
+    """Update a reservation (only if not yet activated)"""
+    reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    if reservation["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Cannot modify an activated or cancelled reservation")
+    
+    # Get queue for recalculation
+    queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    current_waiting = await db.tickets.count_documents({
+        "queue_id": reservation["queue_id"],
+        "status": "waiting"
+    })
+    
+    estimated_arrival = data.reserved_time + timedelta(minutes=current_waiting * 5)
+    
+    # Update reservation
+    update_data = {
+        "email": data.email,
+        "phone": data.phone,
+        "reserved_time": data.reserved_time.isoformat(),
+        "estimated_arrival": estimated_arrival.isoformat()
+    }
+    
+    await db.reservations.update_one(
+        {"id": reservation_id},
+        {"$set": update_data}
+    )
+    
+    # Send confirmation email
+    logger.info(f"📧 Sending reservation update confirmation to {data.email}")
+    if data.email and RESEND_API_KEY:
+        try:
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .info {{ background-color: #EEF2FF; border-left: 4px solid #4F46E5; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>📝 Réservation Modifiée</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Votre réservation pour <strong>{queue["name"]}</strong> a été mise à jour avec succès.</p>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #3730A3;"><strong>📅 Nouveau créneau: {data.reserved_time.strftime('%d/%m/%Y à %H:%M')}</strong></p>
+                            <p style="margin: 5px 0 0 0; color: #3730A3;">Arrivée estimée: {estimated_arrival.strftime('%d/%m/%Y à %H:%M')}</p>
+                        </div>
+                        
+                        <p style="font-size: 16px; color: #475569; margin-top: 30px;">
+                            Nous vous attendons ! N'oubliez pas d'arriver 5 minutes avant votre créneau.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [data.email],
+                "subject": "📝 Réservation modifiée avec succès",
+                "html": html_content
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"✓ Update confirmation email sent")
+        except Exception as e:
+            logger.error(f"❌ Failed to send update email: {str(e)}")
+    
+    return {"message": "Reservation updated successfully", "estimated_arrival": estimated_arrival}
+
+@api_router.delete("/reservations/{reservation_id}")
+async def cancel_reservation(reservation_id: str):
+    """Cancel a reservation (only if not yet activated)"""
+    reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    if reservation["status"] == "activated":
+        raise HTTPException(status_code=400, detail="Cannot cancel an activated reservation")
+    
+    if reservation["status"] == "cancelled":
+        return {"message": "Reservation already cancelled"}
+    
+    # Get queue info
+    queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    
+    # Update status
+    await db.reservations.update_one(
+        {"id": reservation_id},
+        {"$set": {"status": "cancelled"}}
+    )
+    
+    # Send cancellation confirmation
+    logger.info(f"📧 Sending cancellation confirmation to {reservation['email']}")
+    if reservation.get("email") and RESEND_API_KEY:
+        try:
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #64748B 0%, #475569 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .info {{ background-color: #F1F5F9; border-left: 4px solid #64748B; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>❌ Réservation Annulée</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Votre réservation pour <strong>{queue["name"]}</strong> a été annulée.</p>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #1E293B;"><strong>Réservation annulée avec succès</strong></p>
+                            <p style="margin: 5px 0 0 0; color: #1E293B;">Vous pouvez créer une nouvelle réservation à tout moment</p>
+                        </div>
+                        
+                        <p style="font-size: 16px; color: #475569; margin-top: 30px;">
+                            À bientôt !
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [reservation["email"]],
+                "subject": "❌ Réservation annulée",
+                "html": html_content
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"✓ Cancellation email sent")
+        except Exception as e:
+            logger.error(f"❌ Failed to send cancellation email: {str(e)}")
+    
+    return {"message": "Reservation cancelled successfully"}
+
 # Export endpoints
 @api_router.get("/queues/{queue_id}/export/csv")
 async def export_queue_stats_csv(queue_id: str, establishment_id: str = Depends(get_current_user)):
