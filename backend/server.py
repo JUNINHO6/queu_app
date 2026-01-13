@@ -804,6 +804,72 @@ async def websocket_endpoint(websocket: WebSocket, queue_id: str):
 async def root():
     return {"message": "QUEUE API"}
 
+# Notification status endpoint
+@api_router.get("/notifications/status")
+async def get_notification_status():
+    """Check if notification services are configured"""
+    resend_configured = bool(os.environ.get('RESEND_API_KEY'))
+    twilio_configured = bool(
+        os.environ.get('TWILIO_ACCOUNT_SID') and 
+        os.environ.get('TWILIO_AUTH_TOKEN')
+    )
+    
+    return {
+        "email": {
+            "configured": resend_configured,
+            "provider": "Resend" if resend_configured else None
+        },
+        "sms": {
+            "configured": twilio_configured,
+            "provider": "Twilio" if twilio_configured else None
+        },
+        "status": "fully_configured" if (resend_configured and twilio_configured) else 
+                  "partially_configured" if (resend_configured or twilio_configured) else 
+                  "not_configured"
+    }
+
+# Test notification endpoint
+@api_router.post("/notifications/test")
+async def test_notification(
+    email: Optional[str] = None,
+    phone: Optional[str] = None,
+    establishment_id: str = Depends(get_current_user)
+):
+    """Test notification sending"""
+    if not email and not phone:
+        raise HTTPException(status_code=400, detail="Provide at least email or phone")
+    
+    results = {
+        "email": None,
+        "sms": None
+    }
+    
+    if email:
+        try:
+            success = await NotificationService.send_email_notification(
+                email,
+                "File de Test",
+                99,
+                2
+            )
+            results["email"] = "sent" if success else "not_configured"
+        except Exception as e:
+            results["email"] = f"error: {str(e)}"
+    
+    if phone:
+        try:
+            success = await NotificationService.send_sms_notification(
+                phone,
+                "File de Test",
+                99,
+                2
+            )
+            results["sms"] = "sent" if success else "not_configured"
+        except Exception as e:
+            results["sms"] = f"error: {str(e)}"
+    
+    return results
+
 app.include_router(api_router)
 
 app.add_middleware(
