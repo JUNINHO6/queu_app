@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, LogOut, Play, Pause, RotateCcw, QrCode, Users, Clock, Bell } from 'lucide-react';
+import { Plus, LogOut, Play, Pause, RotateCcw, QrCode, Users, Clock, Bell, Calendar, BarChart3 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import io from 'socket.io-client';
 
