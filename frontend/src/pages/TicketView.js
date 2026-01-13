@@ -133,6 +133,17 @@ const TicketView = () => {
                   <p className="text-4xl font-display font-bold text-slate-900">{position.position}</p>
                 </div>
               </div>
+
+              {position.estimated_wait_time && position.estimated_wait_time > 0 && (
+                <div className="bg-indigo-50 rounded-lg p-4" data-testid="estimated-wait">
+                  <div className="flex items-center justify-center space-x-2">
+                    <Clock className="w-5 h-5 text-indigo-600" />
+                    <p className="text-indigo-900">
+                      Temps d'attente estimé: <strong>{position.estimated_wait_time} min</strong>
+                    </p>
+                  </div>
+                </div>
+              )}
               
               <div className="pt-4 border-t border-slate-200" data-testid="current-serving-info">
                 <p className="text-slate-600 text-sm mb-1">Numéro en cours</p>
