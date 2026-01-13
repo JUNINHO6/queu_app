@@ -19,6 +19,9 @@ import base64
 from fastapi.responses import JSONResponse
 import json
 import asyncio
+import asyncio
+import resend
+from twilio.rest import Client
 from services.notifications import NotificationService
 from services.export import ExportService
 
@@ -35,6 +38,19 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 JWT_SECRET = os.environ.get('JWT_SECRET', 'your-secret-key-change-in-production')
 JWT_ALGORITHM = "HS256"
 security = HTTPBearer()
+
+# Email/SMS config
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
+
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+twilio_client = None
+if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+    twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
 # WebSocket connection manager
 class ConnectionManager:
