@@ -363,7 +363,7 @@ const Dashboard = () => {
           {qrCode && (
             <div className="text-center space-y-4">
               <div className="flex justify-center p-4">
-                <QRCodeReact value={qrCode.url} size={256} data-testid="qr-code-image" />
+                <QRCodeSVG value={qrCode.url} size={256} data-testid="qr-code-image" />
               </div>
               <p className="text-sm text-slate-600">Les clients peuvent scanner ce QR code pour prendre un numéro</p>
               <Input value={qrCode.url} readOnly className="text-center" data-testid="queue-url-input" />
