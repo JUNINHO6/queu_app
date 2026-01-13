@@ -951,19 +951,19 @@ async def update_reservation(reservation_id: str, data: ReservationCreate):
 
 @api_router.delete("/reservations/{reservation_id}")
 async def cancel_reservation(reservation_id: str):
-    """Cancel a reservation (only if not yet activated)"""
+    """Cancel a reservation (can cancel even if activated, will cancel associated ticket)"""
     reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
     if not reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
     
-    if reservation["status"] == "activated":
-        raise HTTPException(status_code=400, detail="Cannot cancel an activated reservation")
-    
     if reservation["status"] == "cancelled":
         return {"message": "Reservation already cancelled"}
     
-    # Get queue info
+    # Get queue and establishment info
     queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    establishment = await db.establishments.find_one({"id": queue["establishment_id"]}, {"_id": 0})
+    
+    was_activated = reservation["status"] == "activated"
     
     # Update status
     await db.reservations.update_one(
@@ -971,7 +971,15 @@ async def cancel_reservation(reservation_id: str):
         {"$set": {"status": "cancelled"}}
     )
     
-    # Send cancellation confirmation
+    # If was activated, cancel the associated ticket too
+    if was_activated and reservation.get("ticket_id"):
+        await db.tickets.update_one(
+            {"id": reservation["ticket_id"]},
+            {"$set": {"status": "cancelled"}}
+        )
+        logger.info(f"✓ Cancelled associated ticket {reservation['ticket_id']}")
+    
+    # Send cancellation confirmation to client
     logger.info(f"📧 Sending cancellation confirmation to {reservation['email']}")
     if reservation.get("email") and RESEND_API_KEY:
         try:
@@ -981,7 +989,7 @@ async def cancel_reservation(reservation_id: str):
             <head>
                 <style>
                     body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
-                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .container {{ max-width: 600px; margin: 0; auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
                     .header {{ background: linear-gradient(135deg, #64748B 0%, #475569 100%); padding: 40px 20px; text-align: center; }}
                     .header h1 {{ color: white; margin: 0; font-size: 28px; }}
                     .content {{ padding: 40px 30px; }}
@@ -1019,11 +1027,62 @@ async def cancel_reservation(reservation_id: str):
             }
             
             await asyncio.to_thread(resend.Emails.send, params)
-            logger.info(f"✓ Cancellation email sent")
+            logger.info(f"✓ Cancellation email sent to client")
         except Exception as e:
             logger.error(f"❌ Failed to send cancellation email: {str(e)}")
     
-    return {"message": "Reservation cancelled successfully"}
+    # Notify admin
+    logger.info(f"📧 Notifying admin about cancellation")
+    if establishment.get("email") and RESEND_API_KEY:
+        try:
+            admin_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .info {{ background-color: #FEF2F2; border-left: 4px solid #DC2626; padding: 15px; margin: 20px 0; border-radius: 4px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🚫 Réservation Annulée par Client</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Un client a annulé sa réservation pour <strong>{queue["name"]}</strong>.</p>
+                        
+                        <div class="info">
+                            <p style="margin: 0; color: #7F1D1D;"><strong>Client: {reservation['email']}</strong></p>
+                            {f'<p style="margin: 5px 0 0 0; color: #7F1D1D;">Créneau annulé: {datetime.fromisoformat(reservation["reserved_time"]).strftime("%d/%m/%Y à %H:%M")}</p>' if isinstance(reservation.get("reserved_time"), str) else ''}
+                            <p style="margin: 5px 0 0 0; color: #7F1D1D;">Statut avant annulation: {reservation["status"].upper()}</p>
+                        </div>
+                        
+                        {f'<p style="font-size: 14px; color: #DC2626; margin-top: 20px;"><strong>⚠️ Cette réservation était déjà activée. Le ticket associé a été annulé.</strong></p>' if was_activated else ''}
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            admin_params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [establishment["email"]],
+                "subject": f"🚫 Réservation annulée - {queue['name']}",
+                "html": admin_html
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, admin_params)
+            logger.info(f"✓ Admin notification sent to {establishment['email']}")
+        except Exception as e:
+            logger.error(f"❌ Failed to send admin notification: {str(e)}")
+    
+    return {"message": "Reservation cancelled successfully", "ticket_cancelled": was_activated}
 
 # Export endpoints
 @api_router.get("/queues/{queue_id}/export/csv")
