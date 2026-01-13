@@ -1084,6 +1084,93 @@ async def cancel_reservation(reservation_id: str):
     
     return {"message": "Reservation cancelled successfully", "ticket_cancelled": was_activated}
 
+@api_router.post("/reservations/{reservation_id}/send-link")
+async def send_reservation_link(reservation_id: str):
+    """Send reservation management link to client email"""
+    reservation = await db.reservations.find_one({"id": reservation_id}, {"_id": 0})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    
+    queue = await db.queues.find_one({"id": reservation["queue_id"]}, {"_id": 0})
+    
+    if not reservation.get("email"):
+        raise HTTPException(status_code=400, detail="No email associated with this reservation")
+    
+    logger.info(f"📧 Sending reservation link to {reservation['email']}")
+    
+    if RESEND_API_KEY:
+        try:
+            reservation_url = f"{os.environ.get('FRONTEND_URL')}/reservation/{reservation_id}"
+            
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: 'Arial', sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; }}
+                    .container {{ max-width: 600px; margin: 0 auto; background-color: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+                    .header {{ background: linear-gradient(135deg, #4F46E5 0%, #6366F1 100%); padding: 40px 20px; text-align: center; }}
+                    .header h1 {{ color: white; margin: 0; font-size: 28px; }}
+                    .content {{ padding: 40px 30px; }}
+                    .button {{ display: inline-block; background-color: #4F46E5; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }}
+                    .link {{ word-break: break-all; background-color: #F1F5F9; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🔗 Lien de Gestion de Réservation</h1>
+                    </div>
+                    <div class="content">
+                        <p style="font-size: 18px; color: #334155;">Bonjour,</p>
+                        <p style="font-size: 16px; color: #475569;">Voici votre lien de gestion pour la réservation à <strong>{queue["name"]}</strong>.</p>
+                        
+                        <p style="font-size: 16px; color: #475569; margin-top: 30px;">
+                            Avec ce lien, vous pouvez :
+                        </p>
+                        <ul style="color: #475569;">
+                            <li>Voir les détails de votre réservation</li>
+                            <li>Modifier la date/heure</li>
+                            <li>Annuler si nécessaire</li>
+                            <li>Suivre votre ticket (si activé)</li>
+                        </ul>
+                        
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="{reservation_url}" class="button">
+                                Gérer ma réservation
+                            </a>
+                        </div>
+                        
+                        <p style="font-size: 14px; color: #64748b;">
+                            Ou copiez ce lien dans votre navigateur :
+                        </p>
+                        <div class="link">{reservation_url}</div>
+                        
+                        <p style="font-size: 12px; color: #94A3B8; margin-top: 30px; text-align: center;">
+                            Conservez ce lien pour accéder à votre réservation à tout moment
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            params = {
+                "from": os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev'),
+                "to": [reservation["email"]],
+                "subject": f"🔗 Votre lien de réservation - {queue['name']}",
+                "html": html_content
+            }
+            
+            await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"✓ Reservation link sent")
+            return {"message": "Link sent successfully"}
+        except Exception as e:
+            logger.error(f"❌ Failed to send link: {str(e)}")
+            raise HTTPException(status_code=500, detail="Failed to send email")
+    else:
+        raise HTTPException(status_code=503, detail="Email service not configured")
+
 # Export endpoints
 @api_router.get("/queues/{queue_id}/export/csv")
 async def export_queue_stats_csv(queue_id: str, establishment_id: str = Depends(get_current_user)):
