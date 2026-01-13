@@ -91,13 +91,23 @@ const ReservationPage = () => {
           <p className="text-slate-600 mb-6">
             Un email de confirmation vous a été envoyé. Présentez-vous 5 minutes avant votre créneau.
           </p>
-          <Button
-            onClick={() => navigate(`/q/${queueId}`)}
-            className="bg-indigo-600 hover:bg-indigo-700"
-            data-testid="back-to-queue-btn"
-          >
-            Retour à la file
-          </Button>
+          <div className="space-y-3">
+            <Button
+              onClick={() => navigate(`/q/${queueId}`)}
+              className="w-full bg-indigo-600 hover:bg-indigo-700"
+              data-testid="back-to-queue-btn"
+            >
+              Retour à la file
+            </Button>
+            <Button
+              onClick={() => navigate(`/reservation/${reservation.id}`)}
+              variant="outline"
+              className="w-full border-2"
+              data-testid="manage-reservation-btn"
+            >
+              Gérer ma réservation
+            </Button>
+          </div>
         </motion.div>
       </div>
     );
