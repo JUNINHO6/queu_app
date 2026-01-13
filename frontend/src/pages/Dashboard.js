@@ -278,6 +278,14 @@ const Dashboard = () => {
                   <p className="text-slate-600 mb-2">Numéro en cours</p>
                   <div className="hero-number text-indigo-600">{selectedQueue.last_called_number || '—'}</div>
                   <p className="text-slate-500 mt-2">Prochain: {selectedQueue.current_number}</p>
+                  
+                  {/* Waiting Count - Visible */}
+                  <div className="mt-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <p className="text-orange-600 text-sm mb-1">Personnes en attente</p>
+                    <p className="text-5xl font-display font-bold text-orange-700">
+                      {selectedQueue.current_number - selectedQueue.last_called_number}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Actions */}
