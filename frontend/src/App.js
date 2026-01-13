@@ -10,6 +10,7 @@ import TicketView from './pages/TicketView';
 import QueueDetails from './pages/QueueDetails';
 import ReservationPage from './pages/ReservationPage';
 import ReservationManagement from './pages/ReservationManagement';
+import ManageReservation from './pages/ManageReservation';
 import Analytics from './pages/Analytics';
 import NotificationSettings from './pages/NotificationSettings';
 import ProtectedRoute from './components/ProtectedRoute';
