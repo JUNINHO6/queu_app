@@ -370,21 +370,27 @@ async def call_next(queue_id: str, establishment_id: str = Depends(get_current_u
     
     for upcoming_ticket in upcoming_tickets:
         position = upcoming_ticket["ticket_number"] - next_ticket["ticket_number"]
+        logger.info(f"📧 Notifying ticket #{upcoming_ticket['ticket_number']} ({position} people ahead)")
+        
         if upcoming_ticket.get("email"):
             try:
-                await NotificationService.send_email_notification(
+                success = await NotificationService.send_email_notification(
                     upcoming_ticket["email"],
                     queue["name"],
                     upcoming_ticket["ticket_number"],
                     position
                 )
-                # Mark as notified
-                await db.tickets.update_one(
-                    {"id": upcoming_ticket["id"]},
-                    {"$set": {"notified": True}}
-                )
+                if success:
+                    logger.info(f"✓ Email sent to {upcoming_ticket['email']}")
+                    # Mark as notified
+                    await db.tickets.update_one(
+                        {"id": upcoming_ticket["id"]},
+                        {"$set": {"notified": True}}
+                    )
+                else:
+                    logger.warning(f"✗ Email not sent (no API key configured)")
             except Exception as e:
-                logger.error(f"Failed to send email notification: {str(e)}")
+                logger.error(f"❌ Failed to send email notification: {str(e)}")
         
         if upcoming_ticket.get("phone"):
             try:
