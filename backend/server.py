@@ -333,15 +333,25 @@ async def call_next(queue_id: str, establishment_id: str = Depends(get_current_u
     
     # Send "your turn" notification to the called ticket
     if next_ticket.get("email") or next_ticket.get("phone"):
+        logger.info(f"🔔 Sending 'your turn' notification to ticket #{next_ticket['ticket_number']}")
         try:
-            await NotificationService.send_your_turn_notification(
+            result = await NotificationService.send_your_turn_notification(
                 email=next_ticket.get("email"),
                 phone=next_ticket.get("phone"),
                 queue_name=queue["name"],
                 ticket_number=next_ticket["ticket_number"]
             )
+            if result.get("email"):
+                logger.info(f"✓ Email 'your turn' sent to {next_ticket.get('email')}")
+            else:
+                logger.warning(f"✗ Email 'your turn' failed or not configured")
+            
+            if result.get("sms"):
+                logger.info(f"✓ SMS 'your turn' sent to {next_ticket.get('phone')}")
+            else:
+                logger.warning(f"✗ SMS 'your turn' failed or not configured")
         except Exception as e:
-            logger.error(f"Failed to send notification: {str(e)}")
+            logger.error(f"❌ Failed to send 'your turn' notification: {str(e)}")
     
     # Check and notify upcoming tickets (threshold = 3)
     threshold = queue.get("notification_threshold", 3)
