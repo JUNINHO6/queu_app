@@ -122,34 +122,54 @@ const ClientQueue = () => {
 
         {/* Take Ticket Form */}
         {queue.status === 'active' ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-            <h2 className="text-xl font-display font-semibold text-slate-900 mb-6 text-center">
-              Prendre un numéro
-            </h2>
-            <form onSubmit={takeTicket} className="space-y-4" data-testid="take-ticket-form">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email (optionnel)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="votre@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
-                  data-testid="ticket-email-input"
-                />
-                <p className="text-xs text-slate-500">Recevez une notification par email quand votre tour approche</p>
-              </div>
-              <Button 
-                type="submit" 
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 rounded-lg transition-all active:scale-95"
-                disabled={loading}
-                data-testid="take-ticket-btn"
+          <>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+              <h2 className="text-xl font-display font-semibold text-slate-900 mb-6 text-center">
+                Prendre un numéro
+              </h2>
+              <form onSubmit={takeTicket} className="space-y-4" data-testid="take-ticket-form">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email (optionnel)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="votre@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+                    data-testid="ticket-email-input"
+                  />
+                  <p className="text-xs text-slate-500">Recevez une notification par email quand votre tour approche</p>
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-6 rounded-lg transition-all active:scale-95"
+                  disabled={loading}
+                  data-testid="take-ticket-btn"
+                >
+                  {loading ? 'Création...' : 'Prendre mon numéro'}
+                </Button>
+              </form>
+            </div>
+
+            {/* Reservation Option */}
+            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 text-center">
+              <p className="text-indigo-900 font-medium mb-3">
+                💎 Préférez réserver un créneau ?
+              </p>
+              <p className="text-indigo-700 text-sm mb-4">
+                Choisissez votre heure d'arrivée et évitez l'attente
+              </p>
+              <Button
+                onClick={() => navigate(`/q/${queueId}/reserve`)}
+                variant="outline"
+                className="border-indigo-300 hover:bg-indigo-100"
+                data-testid="go-to-reservation-btn"
               >
-                {loading ? 'Création...' : 'Prendre mon numéro'}
+                Réserver un créneau
               </Button>
-            </form>
-          </div>
+            </div>
+          </>
         ) : (
           <div className="bg-orange-50 border border-orange-200 rounded-2xl p-8 text-center" data-testid="queue-paused-notice">
             <p className="text-orange-700 font-medium">Cette file est actuellement en pause</p>
