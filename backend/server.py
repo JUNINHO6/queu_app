@@ -424,7 +424,8 @@ async def create_ticket(queue_id: str, data: TicketCreate):
     ticket = Ticket(
         queue_id=queue_id,
         ticket_number=new_number,
-        email=data.email
+        email=data.email,
+        phone=data.phone
     )
     doc = ticket.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
