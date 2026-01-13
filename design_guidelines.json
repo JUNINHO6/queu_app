@@ -1,0 +1,145 @@
+{
+  "identity": {
+    "name": "QUEUE",
+    "persona": "E1: The Anti-AI Designer",
+    "tone": "Functional Zen",
+    "description": "A minimalist, high-contrast queue management system that reduces anxiety through clarity and calm aesthetics."
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["600", "700", "800"],
+      "usage": "All headings, and critically, for the Queue Numbers. The digits must be beautiful.",
+      "install_command": "@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap');"
+    },
+    "body": {
+      "font_family": "Public Sans, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "General text, labels, inputs.",
+      "install_command": "@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600&display=swap');"
+    }
+  },
+  "colors": {
+    "palette": {
+      "primary": {
+        "name": "Electric Indigo",
+        "hex": "#4F46E5",
+        "tailwind": "bg-indigo-600",
+        "usage": "Primary actions (Join Queue, Login), Active States."
+      },
+      "urgent": {
+        "name": "Signal Orange",
+        "hex": "#F97316",
+        "tailwind": "bg-orange-500",
+        "usage": "Your Turn notification, 'Call Next' button (high visibility)."
+      },
+      "success": {
+        "name": "Calm Teal",
+        "hex": "#14B8A6",
+        "tailwind": "bg-teal-500",
+        "usage": "Served status, Success messages."
+      },
+      "background": {
+        "app": "#FFFFFF",
+        "dashboard": "#F8FAFC",
+        "card": "#FFFFFF"
+      },
+      "text": {
+        "primary": "#0F172A",
+        "secondary": "#64748B",
+        "tertiary": "#94A3B8"
+      }
+    },
+    "rules": [
+      "No gradients on text.",
+      "Use 'Signal Orange' ONLY for the 'Your Turn' state or 'Call Next' action.",
+      "Dashboard background must be 'slate-50' (#F8FAFC) to differentiate from white cards."
+    ]
+  },
+  "layout": {
+    "spacing": {
+      "base": "Generous. Use p-6 or p-8 for cards.",
+      "grid_gap": "gap-6 or gap-8"
+    },
+    "strategies": {
+      "client_mobile": {
+        "type": "Vertical Stack",
+        "focus": "The Number is the Hero. It should occupy 40% of the screen height.",
+        "alignment": "Center-aligned for the number, Left-aligned for details."
+      },
+      "dashboard": {
+        "type": "Bento Grid",
+        "structure": "Sidebar (Navigation) + Main Content (Grid).",
+        "grid_cols": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4",
+        "widgets": {
+          "queue_list": "col-span-1 row-span-2 (Tall list)",
+          "current_serving": "col-span-2 (Big focus)",
+          "actions": "col-span-1 (Quick buttons)"
+        }
+      }
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Pill-shaped or slightly rounded (rounded-lg).",
+      "interaction": "Scale down on click (active:scale-95).",
+      "shadow": "shadow-sm hover:shadow-md transition-all"
+    },
+    "cards": {
+      "style": "Flat white, 1px border (border-slate-200), subtle shadow (shadow-sm).",
+      "hover": "hover:border-indigo-200 transition-colors"
+    },
+    "inputs": {
+      "style": "bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500"
+    },
+    "status_indicators": {
+      "waiting": "bg-slate-100 text-slate-600",
+      "ready": "bg-orange-100 text-orange-700 animate-pulse",
+      "served": "bg-teal-100 text-teal-700"
+    }
+  },
+  "visual_enhancers": {
+    "texture": "Subtle noise overlay on the dashboard background (opacity 0.02).",
+    "motion": {
+      "library": "framer-motion",
+      "transitions": "Spring physics for number changes.",
+      "page_load": "Fade in + Slide up (y: 20 -> 0)."
+    },
+    "glassmorphism": "Use sparingly. Only for sticky headers (backdrop-blur-md bg-white/80)."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "landing_hero",
+        "url": "https://images.unsplash.com/photo-1749626588174-09f86a67a5aa?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBjb2ZmZWUlMjBzaG9wJTIwaW50ZXJpb3IlMjBtaW5pbWFsaXN0fGVufDB8fHx8MTc2ODMyMDA1Nnww&ixlib=rb-4.1.0&q=85",
+        "description": "Minimalist coffee shop interior with sunlight. Use for 'For Establishments' section."
+      },
+      {
+        "category": "abstract_bg",
+        "url": "https://images.unsplash.com/photo-1761577680751-0f3e25c7a8bd?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwyfHxtaW5pbWFsaXN0JTIwYWJzdHJhY3QlMjBnZW9tZXRyaWMlMjBzaGFwZXMlMjB3aGl0ZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzY4MzIwMDU0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "White textured surface. Use as a subtle background for the login/signup pages."
+      },
+      {
+        "category": "accent_visual",
+        "url": "https://images.unsplash.com/photo-1758637612187-3f495543804b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwYWJzdHJhY3QlMjBnZW9tZXRyaWMlMjBzaGFwZXMlMjB3aGl0ZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzY4MzIwMDU0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Abstract blue curves. Use for the 'Client View' waiting screen background (low opacity)."
+      }
+    ],
+    "icons": "lucide-react (default). Use thin strokes (stroke-width={1.5}) for elegance."
+  },
+  "accessibility": {
+    "contrast": "Ensure text is slate-900 on white. Slate-500 for secondary text.",
+    "focus_states": "Visible indigo ring offset-2.",
+    "screen_readers": "All status updates (Your turn!) must use aria-live='polite'."
+  },
+  "universal_guidelines": [
+    "DO NOT use gradients for text.",
+    "DO NOT use 'Inter' for headings. Use 'Manrope'.",
+    "DO NOT center everything. Use asymmetry for interest.",
+    "Padding is luxury. Use p-8 where you'd normally use p-4.",
+    "All interactive elements MUST have data-testid attributes.",
+    "Use 'sonner' for all toast notifications.",
+    "Mobile images must be max-h-[80vh]."
+  ],
+  "instructions_to_main_agent": "You are building a high-performance, minimalist queue app. Focus on the 'Number' display—it is the core UI element. It should be large, legible, and animate smoothly when changing. The dashboard should feel like a cockpit: dense but organized. Use the provided image URLs for the landing page and auth screens."
+}
