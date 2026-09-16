@@ -203,6 +203,4 @@ L'application a été testée avec :
 
 Propriété de l'établissement utilisant l'application.
 
-## 👨‍💻 Développement
 
-Construit avec ❤️ par E1 (Emergent Agent)
